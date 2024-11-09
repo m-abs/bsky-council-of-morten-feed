@@ -20,6 +20,7 @@
     "@atproto/syntax": "^0.1.2",
     "@atproto/xrpc-server": "^0.6.0",
     "better-sqlite3": "^11.3.0",
+    "cache-manager": "^6.1.2",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "kysely": "^0.27.4",
@@ -30,6 +31,7 @@
     "@types/express": "^4.17.17",
     "@types/node": "^20.1.2",
     "inquirer": "^12.0.1",
+    "node-dev": "^8.0.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.0.4"
   },

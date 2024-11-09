@@ -12,9 +12,18 @@ import {
   isCommit,
 } from '../lexicon/types/com/atproto/sync/subscribeRepos'
 import { Database } from '../db'
+import { BskyAgent } from '@atproto/api'
+import { createCache } from 'cache-manager'
 
 export abstract class FirehoseSubscriptionBase {
   public sub: Subscription<RepoEvent>
+
+  public agent: BskyAgent;
+
+  public memCache = createCache({
+    ttl: 10000,
+    refreshThreshold: 3000,
+  });
 
   constructor(public db: Database, public service: string) {
     this.sub = new Subscription({
@@ -32,6 +41,8 @@ export abstract class FirehoseSubscriptionBase {
         }
       },
     })
+
+    this.agent = new BskyAgent({service: "https://public.api.bsky.app/"});
   }
 
   abstract handleEvent(evt: RepoEvent): Promise<void>
