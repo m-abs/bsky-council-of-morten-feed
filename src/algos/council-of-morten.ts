@@ -2,7 +2,7 @@ import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton'
 import { AppContext } from '../config'
 
 // max 15 chars
-export const shortname = 'counsil-of-morten'
+export const shortname = 'council-of-morten'
 
 export const handler = async (ctx: AppContext, params: QueryParams) => {
   try {
