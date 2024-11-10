@@ -32,7 +32,7 @@ migrations['002'] = {
   async up(db: Kysely<unknown>) {
     await db.schema
       .alterTable('post')
-      .addColumn('isQuestion', 'integer', (col) => col.notNull())
+      .addColumn('isQuestion', 'integer', (col) => col.notNull().defaultTo(0))
       .execute()
   },
   async down(db: Kysely<unknown>) {
