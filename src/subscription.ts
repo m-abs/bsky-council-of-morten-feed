@@ -8,6 +8,16 @@ function makeMortenCacheKey(author: string) {
   return `isMorten:${author}`;
 }
 
+ const questionHashtags = [
+  /\B#blålys\b/iu,
+  /\B#blåhjerne\b/iu,
+  /\B#twitterhjerne\b/iu,
+ ];
+
+ function isQuestionPost(post: string) {
+  return questionHashtags.some((hashtag) => hashtag.test(post));
+ }
+
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
     if (!isCommit(evt)) return
@@ -34,10 +44,10 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         const authorIsMorten = await this.memCache.get<boolean>(makeMortenCacheKey(author));
         if (authorIsMorten === true) {
           isMorten.add(author);
-          console.log("morten", author);
+          console.log("cached morten", author);
         } else if (authorIsMorten === false) {
           isNotMorten.add(author);
-          console.log("not morten", author);
+          console.log("cached not morten", author);
         } else {
           needsCheck.add(author);
         }
@@ -51,10 +61,10 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
           if (authorIsMorten) {
             isMorten.add(profile.did);
-            console.log("morten", profile.displayName);
+            console.log("not-cached morten", profile.displayName);
           } else {
             isNotMorten.add(profile.did);
-            console.log("not morten", profile.displayName);
+            console.log("not-cached not morten", profile.displayName);
           }
 
           await this.memCache.set(makeMortenCacheKey(profile.did), authorIsMorten, 60 * 60 * 24);
@@ -63,16 +73,16 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     }
 
     const postsToCreate = ops.posts.creates
-      .filter((create) => isMorten.has(create.author))
+      .filter((create) => isMorten.has(create.author) || isQuestionPost(create.record.text))
       .map((create) => {
-        // console.log(inspect(create, { depth: 5 }));
         return {
           uri: create.uri,
           cid: create.cid,
-          isMorten: 1,
+          isMorten: isMorten.has(create.author) ? 1: 0,
+          isQuestion: isQuestionPost(create.record.text) ? 1 : 0,
           indexedAt: new Date().toISOString(),
         }
-      })
+      });
 
     const postsToDelete = [
       ...ops.posts.deletes,

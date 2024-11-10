@@ -7,6 +7,7 @@ export type Post = {
   uri: string
   cid: string
   isMorten: number
+  isQuestion: number
   indexedAt: string
 }
 

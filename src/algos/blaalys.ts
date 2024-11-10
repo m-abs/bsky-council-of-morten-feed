@@ -2,14 +2,14 @@ import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton'
 import { AppContext } from '../config'
 
 // max 15 chars
-export const shortname = 'CouncilOfMorten'
+export const shortname = 'Blaalys'
 
 export const handler = async (ctx: AppContext, params: QueryParams) => {
   try {
     let builder = ctx.db
       .selectFrom('post')
       .selectAll()
-      .where('post.isMorten', '=', 1)
+      .where('post.isQuestion', '=', 1)
       .orderBy('indexedAt', 'desc')
       .orderBy('cid', 'desc')
       .limit(params.limit)
