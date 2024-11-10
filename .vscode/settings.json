@@ -1,6 +1,18 @@
 {
     "npm.packageManager": "npm",
     "cSpell.words": [
-        "blaalys"
+        "atproto",
+        "blaalys",
+        "blåhjerne",
+        "Blålys",
+        "Bluesky",
+        "bsky",
+        "Dids",
+        "kysely",
+        "Mortens",
+        "multiformats",
+        "twitterhjerne",
+        "unpublish",
+        "xrpc"
     ]
 }

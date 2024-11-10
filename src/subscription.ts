@@ -5,69 +5,108 @@ import {
 import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
 
 function makeMortenCacheKey(author: string) {
-  return `isMorten:${author}`;
+  return `isMorten:${author}`
 }
 
- const questionHashtags = [
+// Question hashtags regexp
+const questionHashtags = [
   /\B#blålys\b/iu,
   /\B#blåhjerne\b/iu,
   /\B#twitterhjerne\b/iu,
- ];
+]
 
- function isQuestionPost(post: string) {
-  return questionHashtags.some((hashtag) => hashtag.test(post));
- }
+// Cache TTL for Morten check
+const mortenCacheTTL = 60 * 60 * 24 * 1000
+
+/**
+ * Check if a post has one of the question hashtags
+ */
+function isQuestionPost(post: string) {
+  return questionHashtags.some((hashtag) => hashtag.test(post))
+}
+
+// List of allowed languages for the Council of Mortens feed.
+const mortenLangs = ['da', 'en', 'no', 'sv', 'fi', 'is', 'fo', 'kl']
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
-    if (!isCommit(evt)) return
+    if (!isCommit(evt)) {
+      return
+    }
 
     const ops = await getOpsByType(evt)
 
-    const isNotMorten = new Set<string>();
-    const isMorten = new Set<string>();
+    const isNotMorten = new Set<string>()
+    const isMorten = new Set<string>()
 
+    // List of author Dids of created posts
     const createAuthorDids = ops.posts.creates
-      .filter((create) => create.record.langs?.includes('da') === true)
-      .map((create) => create.author).filter((author) => author !== null);
+      .filter((create) => mortenLangs.some((langCode) => create.record.langs?.includes(langCode)))
+      .map((create) => create.author)
+      .filter((authorDid) => authorDid)
 
     if (createAuthorDids.length > 0) {
-      const authors = new Set(createAuthorDids);
+      // Check if create authors are named Morten
+      const authors = new Set(createAuthorDids)
 
-      const needsCheck = new Set<string>();
+      // List of author Dids that need to be checked if they are named Morten
+      const needsCheckForMorten = new Set<string>()
 
       for (const author of authors) {
         if (!author) {
-          continue;
+          continue
         }
 
-        const authorIsMorten = await this.memCache.get<boolean>(makeMortenCacheKey(author));
+        // Check the memcache if we have already checked if the author is Morten.
+        const authorIsMorten = await this.memCache.get<boolean>(makeMortenCacheKey(author))
         if (authorIsMorten === true) {
-          isMorten.add(author);
-          console.log("cached morten", author);
+          isMorten.add(author)
         } else if (authorIsMorten === false) {
-          isNotMorten.add(author);
-          console.log("cached not morten", author);
+          isNotMorten.add(author)
         } else {
-          needsCheck.add(author);
+          needsCheckForMorten.add(author)
         }
       }
 
-      if (needsCheck.size > 0) {
-        const authorProfiles = (await this.agent.getProfiles({ actors: [...needsCheck] })).data.profiles;
+      if (isNotMorten.size > 0) {
+        console.log("Cached is not Morten - ", ...isNotMorten)
+      }
 
+      if (isMorten.size > 0) {
+        console.log("Cached is Morten - ", ...isMorten)
+      }
+
+      if (needsCheckForMorten.size > 0) {
+        // Fetch the profiles of the authors that need to be checked, if they are named Morten
+        const authorProfiles = (await this.agent.getProfiles({ actors: [...needsCheckForMorten] })).data.profiles
+
+        const missIsMorten = new Map<string, string>()
+        const missIsNotMorten = new Map<string, string>()
         for (const profile of authorProfiles) {
-          const authorIsMorten = profile.displayName?.toLocaleLowerCase().includes('morten');
-
-          if (authorIsMorten) {
-            isMorten.add(profile.did);
-            console.log("not-cached morten", profile.displayName);
-          } else {
-            isNotMorten.add(profile.did);
-            console.log("not-cached not morten", profile.displayName);
+          if (!profile.displayName) {
+            isNotMorten.add(profile.did)
+            continue
           }
 
-          await this.memCache.set(makeMortenCacheKey(profile.did), authorIsMorten, 60 * 60 * 24);
+          const authorIsMorten = profile.displayName.toLocaleLowerCase().includes('morten')
+
+          if (authorIsMorten) {
+            isMorten.add(profile.did)
+            missIsMorten.set(profile.did, profile.displayName)
+          } else {
+            isNotMorten.add(profile.did)
+            missIsNotMorten.set(profile.did, profile.displayName)
+          }
+
+          await this.memCache.set(makeMortenCacheKey(profile.did), authorIsMorten, mortenCacheTTL)
+        }
+
+        if (missIsNotMorten.size > 0) {
+          console.log("Missed is not Morten - ", ...missIsNotMorten)
+        }
+
+        if (missIsMorten.size > 0) {
+          console.log("Missed is Morten - ", ...missIsMorten)
         }
       }
     }
@@ -78,15 +117,14 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         return {
           uri: create.uri,
           cid: create.cid,
-          isMorten: isMorten.has(create.author) ? 1: 0,
+          isMorten: isMorten.has(create.author) ? 1 : 0,
           isQuestion: isQuestionPost(create.record.text) ? 1 : 0,
           indexedAt: new Date().toISOString(),
         }
-      });
+      })
 
     const postsToDelete = [
       ...ops.posts.deletes,
-      ...ops.posts.creates.filter((create) => isNotMorten.has(create.author))
     ].map((del) => del.uri)
 
     if (postsToDelete.length > 0) {
